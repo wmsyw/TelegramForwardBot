@@ -1,0 +1,22 @@
+{
+  "name": "kokosa-forward",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Telegram message forwarding bot with AI content moderation",
+  "main": "src/index.js",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "cloudflare-workers"
+  ],
+  "author": "hatanokokosa",
+  "license": "BSD-2-Clause",
+  "packageManager": "pnpm@10.24.0",
+  "devDependencies": {
+    "prettier": "3.7.4",
+    "wrangler": "^4.55.0"
+  }
+}
