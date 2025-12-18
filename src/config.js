@@ -41,3 +41,19 @@ export const RATE_LIMIT_WINDOW_MS = 60000;
 
 /** 信任阈值 - Messages needed to become trusted (skip AI moderation) */
 export const TRUST_THRESHOLD = 3;
+
+// ============================================
+// Cache Configuration
+// ============================================
+
+/** 内容审核缓存最小长度 - Minimum content length to cache moderation results */
+export const MOD_CACHE_MIN_LENGTH = 5;
+
+/** 内容审核缓存时间 - Moderation cache TTL in seconds (24 hours) */
+export const MOD_CACHE_TTL_SECONDS = 86400;
+
+/** 频率限制缓存时间 - Rate limit record TTL in seconds */
+export const RATE_LIMIT_TTL_SECONDS = 120;
+
+/** API密钥显示长度 - Number of API key characters to show in stats */
+export const API_KEY_DISPLAY_LENGTH = 6;

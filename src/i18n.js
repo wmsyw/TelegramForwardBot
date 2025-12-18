@@ -36,11 +36,14 @@ const messages = {
     blocked: "Blocked: {guestId} ({username})",
     trusted:
       "Trusted: {guestId} ({username})\nThis user will skip AI moderation.",
+    untrusted:
+      "Untrusted: {guestId} ({username})\nThis user will be checked by AI again.",
     unblocked: "Unblocked: {guestId}",
     user_status:
       "User: {guestId} ({username})\nBlocked: {blocked}\nRelay: {status}",
     content_check: "Content Check: {status}",
-    no_text_to_check: "No text content to check.",
+    image_check: "Image Check: {status}",
+    no_content_to_check: "No content to check.",
     cannot_find_user: "Cannot find user info for this message.",
     relay_not_found: "Relay not found.",
     cannot_find_sender: "Cannot find original sender for this message.",
@@ -104,11 +107,13 @@ const messages = {
     unbanned: "已解封: {guestId}",
     blocked: "已封禁: {guestId} ({username})",
     trusted: "已信任: {guestId} ({username})\n该用户将跳过AI审核。",
+    untrusted: "已取消信任: {guestId} ({username})\n该用户将重新接受AI审核。",
     unblocked: "已解封: {guestId}",
     user_status:
       "用户: {guestId} ({username})\n封禁状态: {blocked}\n会话状态: {status}",
     content_check: "内容检查: {status}",
-    no_text_to_check: "没有可检查的文本内容。",
+    image_check: "图片检查: {status}",
+    no_content_to_check: "没有可检查的内容。",
     cannot_find_user: "无法找到此消息的用户信息。",
     relay_not_found: "会话记录未找到。",
     cannot_find_sender: "无法找到此消息的原始发送者。",

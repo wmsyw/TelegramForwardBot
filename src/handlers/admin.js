@@ -7,7 +7,12 @@
  * Handles all admin commands including blocking, statistics, and management.
  */
 
-import { checkContentSafety, getApiUsageStats, parseApiKeys } from "../ai.js";
+import {
+  checkContentSafety,
+  checkImageSafety,
+  getApiUsageStats,
+  parseApiKeys,
+} from "../ai.js";
 import {
   getRelay,
   getRelayByAdminMsg,
@@ -17,9 +22,10 @@ import {
   getBlockedList,
   getStatistics,
   setUserTrusted,
-  getUserLanguage,
+  resetTrustScore,
   setUserLanguage,
 } from "../storage.js";
+import { API_KEY_DISPLAY_LENGTH } from "../config.js";
 import {
   t,
   buildLanguageKeyboard,
@@ -35,7 +41,15 @@ import {
  * Send a message to admin with consistent error handling.
  */
 async function sendToAdmin(telegram, adminId, text, options = {}) {
-  return telegram.sendMessage({ chat_id: adminId, text, ...options });
+  const result = await telegram.sendMessage({
+    chat_id: adminId,
+    text,
+    ...options,
+  });
+  if (!result.ok) {
+    console.warn(`[Admin] sendMessage failed: ${JSON.stringify(result)}`);
+  }
+  return result;
 }
 
 /**
@@ -132,7 +146,7 @@ const cmdStats = async (ctx) => {
   if (apiKeys.length > 0) {
     output += t("api_usage_title", {}, ctx.lang);
     for (const [idx, key] of apiKeys.entries()) {
-      const masked = key.substring(0, 10) + "...";
+      const masked = key.substring(0, API_KEY_DISPLAY_LENGTH) + "***";
       output += t(
         "api_usage_item",
         { index: idx + 1, calls: apiStats[key], masked },
@@ -157,7 +171,7 @@ const COMMANDS = {
 // ============================================
 
 async function handleUnbanCommand(ctx, text) {
-  const guestId = text.split(" ")[1];
+  const guestId = text.split(/\s+/)[1]?.trim();
   if (!guestId) {
     return sendToAdmin(
       ctx.telegram,
@@ -181,7 +195,7 @@ async function handleUnbanCommand(ctx, text) {
 }
 
 async function handleTrustIdCommand(ctx, text) {
-  const guestId = text.split(" ")[1];
+  const guestId = text.split(/\s+/)[1]?.trim();
   if (!guestId) {
     return sendToAdmin(
       ctx.telegram,
@@ -254,6 +268,19 @@ const replyTrust = async (ctx, relay) => {
   );
 };
 
+const replyUntrust = async (ctx, relay) => {
+  await resetTrustScore(ctx.kv, relay.guestId);
+  return sendToAdmin(
+    ctx.telegram,
+    ctx.adminId,
+    t(
+      "untrusted",
+      { guestId: relay.guestId, username: relay.guestUsername },
+      ctx.lang,
+    ),
+  );
+};
+
 const replyUnblock = async (ctx, relay) => {
   await setGuestBlocked(ctx.kv, relay.guestId, false);
   return sendToAdmin(
@@ -281,31 +308,54 @@ const replyStatus = async (ctx, relay) => {
   );
 };
 
-const replyCheck = async (ctx, relay, relayId, env) => {
-  if (!relay.preview) {
+const replyCheck = async (ctx, relay, relayId, env, replyMsg) => {
+  const apiKeys = parseApiKeys(env.ENV_GEMINI_API_KEY);
+  const results = [];
+
+  // Check text content first
+  const textContent = replyMsg?.caption || replyMsg?.text || relay.preview;
+  if (textContent) {
+    const textResult = await checkContentSafety(textContent, apiKeys);
+    const textStatus = textResult ? `UNSAFE: ${textResult}` : "SAFE";
+    results.push(t("content_check", { status: textStatus }, ctx.lang));
+  }
+
+  // Check image if present
+  if (replyMsg?.photo?.length) {
+    const photo = replyMsg.photo[replyMsg.photo.length - 1];
+    const fileResult = await ctx.telegram.getFile({ file_id: photo.file_id });
+    if (fileResult.ok) {
+      const imageUrl = ctx.telegram.getFileUrl(fileResult.result.file_path);
+      const imageResult = await checkImageSafety(imageUrl, apiKeys);
+      const imageStatus = imageResult ? `UNSAFE: ${imageResult}` : "SAFE";
+      results.push(t("image_check", { status: imageStatus }, ctx.lang));
+    }
+  }
+
+  if (results.length === 0) {
     return sendToAdmin(
       ctx.telegram,
       ctx.adminId,
-      t("no_text_to_check", {}, ctx.lang),
+      t("no_content_to_check", {}, ctx.lang),
     );
   }
-  const apiKeys = parseApiKeys(env.ENV_GEMINI_API_KEY);
-  const result = await checkContentSafety(relay.preview, apiKeys);
-  const status = result ? `UNSAFE: ${result}` : "SAFE";
-  return sendToAdmin(
-    ctx.telegram,
-    ctx.adminId,
-    t("content_check", { status }, ctx.lang),
-  );
+
+  return sendToAdmin(ctx.telegram, ctx.adminId, results.join("\n"));
 };
 
 /** Reply command map */
 const REPLY_COMMANDS = {
   "/block": { handler: replyBlock, needsRelayId: true },
   "/trust": { handler: replyTrust, needsRelayId: false },
+  "/untrust": { handler: replyUntrust, needsRelayId: false },
   "/unblock": { handler: replyUnblock, needsRelayId: false },
   "/status": { handler: replyStatus, needsRelayId: false },
-  "/check": { handler: replyCheck, needsRelayId: false, needsEnv: true },
+  "/check": {
+    handler: replyCheck,
+    needsRelayId: false,
+    needsEnv: true,
+    needsMsg: true,
+  },
 };
 
 // ============================================
@@ -431,7 +481,8 @@ export async function handleAdminMessage(message, telegram, kv, env) {
         if (error) return;
 
         if (replyCmd.needsEnv) {
-          return await replyCmd.handler(ctx, relay, relayId, env);
+          const replyMsg = replyCmd.needsMsg ? message.reply_to_message : null;
+          return await replyCmd.handler(ctx, relay, relayId, env, replyMsg);
         }
         if (replyCmd.needsRelayId) {
           return await replyCmd.handler(ctx, relay, relayId);

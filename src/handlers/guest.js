@@ -20,7 +20,6 @@ import {
   incrementTrustScore,
   getCachedModerationResult,
   cacheModerationResult,
-  getUserLanguage,
 } from "../storage.js";
 import { ENABLE_FILTER, AUTO_BLOCK } from "../config.js";
 import { t, buildLanguageKeyboard, getUserLangOrDefault } from "../i18n.js";
@@ -33,7 +32,15 @@ import { t, buildLanguageKeyboard, getUserLangOrDefault } from "../i18n.js";
  * Send message to guest with consistent error handling.
  */
 async function sendToGuest(telegram, chatId, text, options = {}) {
-  return telegram.sendMessage({ chat_id: chatId, text, ...options });
+  const result = await telegram.sendMessage({
+    chat_id: chatId,
+    text,
+    ...options,
+  });
+  if (!result.ok) {
+    console.warn(`[Guest] sendMessage failed: ${JSON.stringify(result)}`);
+  }
+  return result;
 }
 
 /**

@@ -24,9 +24,13 @@ const ADMIN_COMMANDS = [
   { command: "block", description: "Block user (reply to message)" },
   { command: "unblock", description: "Unblock user (reply to message)" },
   { command: "trust", description: "Whitelist user (reply to message)" },
+  {
+    command: "untrust",
+    description: "Remove from whitelist (reply to message)",
+  },
   { command: "trustid", description: "Whitelist user by ID" },
   { command: "status", description: "Check user status (reply to message)" },
-  { command: "check", description: "AI content check (reply to message)" },
+  { command: "check", description: "AI check text/image (reply to message)" },
   { command: "checktext", description: "AI check any text" },
   { command: "lang", description: "Change language" },
 ];

@@ -12,6 +12,9 @@ import {
   RATE_LIMIT_MAX_REQUESTS,
   RATE_LIMIT_WINDOW_MS,
   TRUST_THRESHOLD,
+  MOD_CACHE_MIN_LENGTH,
+  MOD_CACHE_TTL_SECONDS,
+  RATE_LIMIT_TTL_SECONDS,
 } from "./config.js";
 
 // ============================================
@@ -148,16 +151,9 @@ export async function getBlockInfo(kv, guestId) {
  */
 export async function getBlockedList(kv) {
   const list = await kv.list({ prefix: "block-info:" });
-  const blocked = [];
-
-  for (const key of list.keys) {
-    const info = await kv.get(key.name, { type: "text" });
-    if (info) {
-      blocked.push(JSON.parse(info));
-    }
-  }
-
-  return blocked;
+  const promises = list.keys.map((key) => kv.get(key.name, { type: "text" }));
+  const results = await Promise.all(promises);
+  return results.filter(Boolean).map((info) => JSON.parse(info));
 }
 
 // ============================================
@@ -228,7 +224,7 @@ export async function checkRateLimit(kv, guestId) {
   if (!data || now - data.windowStart > RATE_LIMIT_WINDOW_MS) {
     // New window
     await kv.put(key, JSON.stringify({ windowStart: now, count: 1 }), {
-      expirationTtl: 120,
+      expirationTtl: RATE_LIMIT_TTL_SECONDS,
     });
     return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1 };
   }
@@ -245,7 +241,7 @@ export async function checkRateLimit(kv, guestId) {
   await kv.put(
     key,
     JSON.stringify({ windowStart: data.windowStart, count: data.count + 1 }),
-    { expirationTtl: 120 },
+    { expirationTtl: RATE_LIMIT_TTL_SECONDS },
   );
 
   return {
@@ -344,7 +340,7 @@ async function generateContentHash(content) {
  * @returns {Promise<{hit: boolean, result: string|null}>}
  */
 export async function getCachedModerationResult(kv, content) {
-  if (!content || content.length < 5) {
+  if (!content || content.length < MOD_CACHE_MIN_LENGTH) {
     return { hit: false, result: null };
   }
 
@@ -369,13 +365,15 @@ export async function getCachedModerationResult(kv, content) {
  * @param {string|null} result - Moderation result (null = safe)
  */
 export async function cacheModerationResult(kv, content, result) {
-  if (!content || content.length < 5) {
+  if (!content || content.length < MOD_CACHE_MIN_LENGTH) {
     return;
   }
 
   const hash = await generateContentHash(content);
   const value = result ? `UNSAFE:${result}` : "SAFE";
-  await kv.put(`modcache:${hash}`, value, { expirationTtl: 86400 }); // 24 hours
+  await kv.put(`modcache:${hash}`, value, {
+    expirationTtl: MOD_CACHE_TTL_SECONDS,
+  });
 }
 
 // ============================================
