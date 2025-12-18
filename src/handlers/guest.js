@@ -2,6 +2,9 @@
  * kokosa-forward - Telegram Message Forwarding Bot
  * Copyright (c) 2025, 秦心桜
  * Licensed under BSD 2-Clause License
+ *
+ * @fileoverview Guest message handler.
+ * Handles guest messages with rate limiting, AI moderation, and forwarding.
  */
 
 import { checkContentSafety, checkImageSafety, parseApiKeys } from "../ai.js";
@@ -27,33 +30,21 @@ import { t, buildLanguageKeyboard, getDefaultLanguage } from "../i18n.js";
 // ============================================
 
 /**
- * Get user's language with fallback to default
- * @param {KVNamespace} kv - KV storage
- * @param {string} userId - User ID
- * @returns {Promise<string>} Language code
+ * Get user's language with fallback to default.
  */
 async function getLang(kv, userId) {
   return (await getUserLanguage(kv, userId)) || getDefaultLanguage();
 }
 
 /**
- * Send message to guest with consistent error handling
- * @param {Object} telegram - Telegram client
- * @param {string} chatId - Chat ID
- * @param {string} text - Message text
- * @param {Object} options - Additional options
- * @returns {Promise<Object>} Telegram response
+ * Send message to guest with consistent error handling.
  */
 async function sendToGuest(telegram, chatId, text, options = {}) {
   return telegram.sendMessage({ chat_id: chatId, text, ...options });
 }
 
 /**
- * Get file URL from Telegram (unified handler for images/stickers)
- * @param {Object} telegram - Telegram client
- * @param {string} fileId - File ID
- * @param {string} logPrefix - Log prefix for errors
- * @returns {Promise<string|null>} File URL or null
+ * Get file URL from Telegram (unified handler for images/stickers).
  */
 async function getFileUrl(telegram, fileId, logPrefix = "File") {
   const fileResult = await telegram.getFile({ file_id: fileId });
@@ -65,10 +56,7 @@ async function getFileUrl(telegram, fileId, logPrefix = "File") {
 }
 
 /**
- * Get image URL from message
- * @param {Object} message - Telegram message
- * @param {Object} telegram - Telegram client
- * @returns {Promise<string|null>} Image URL or null
+ * Get image URL from message.
  */
 async function getImageUrl(message, telegram) {
   if (!message.photo?.length) return null;
@@ -77,16 +65,12 @@ async function getImageUrl(message, telegram) {
 }
 
 /**
- * Get sticker URL from message (static stickers only)
- * @param {Object} message - Telegram message
- * @param {Object} telegram - Telegram client
- * @returns {Promise<string|null>} Sticker URL or null
+ * Get sticker URL from message (static stickers only).
  */
 async function getStickerUrl(message, telegram) {
   const sticker = message.sticker;
   if (!sticker) return null;
 
-  // Skip animated/video stickers
   if (sticker.is_animated || sticker.is_video) {
     console.log("[Guest] Skipping animated/video sticker");
     return null;
@@ -96,10 +80,7 @@ async function getStickerUrl(message, telegram) {
 }
 
 /**
- * Build appeal action keyboard
- * @param {string} guestId - Guest ID
- * @param {string} lang - Language code
- * @returns {Object} Inline keyboard markup
+ * Build appeal action keyboard.
  */
 function buildAppealKeyboard(guestId, lang) {
   return {
@@ -122,24 +103,19 @@ function buildAppealKeyboard(guestId, lang) {
 // Command Handlers
 // ============================================
 
-/**
- * Handle /lang command
- */
 async function handleLangCommand(telegram, guestId, lang) {
   return sendToGuest(telegram, guestId, t("lang_select_prompt", {}, lang), {
     reply_markup: buildLanguageKeyboard(guestId),
   });
 }
 
-/**
- * Handle /start command
- */
 async function handleStartCommand(telegram, guestId, lang) {
   return sendToGuest(telegram, guestId, t("guest_welcome", {}, lang));
 }
 
 /**
- * Handle /appeal command
+ * Handle /appeal command.
+ * Allows blocked users to submit appeals with optional attachment.
  */
 async function handleAppealCommand(message, telegram, kv, env) {
   const { ENV_ADMIN_UID } = env;
@@ -149,14 +125,12 @@ async function handleAppealCommand(message, telegram, kv, env) {
   const guestLang = await getLang(kv, guestId);
   const adminLang = await getLang(kv, ENV_ADMIN_UID);
 
-  // Get block info
   const blockInfo = await getBlockInfo(kv, guestId);
   const blockReason = blockInfo?.reason || "Unknown";
   const blockDate = blockInfo?.blockedAt
     ? new Date(blockInfo.blockedAt).toLocaleString()
     : "Unknown";
 
-  // Build appeal message
   let appealText = t("appeal_title", {}, adminLang);
   appealText += t("appeal_from", { username, guestId }, adminLang);
   appealText += t("appeal_blocked", { date: blockDate }, adminLang);
@@ -168,7 +142,6 @@ async function handleAppealCommand(message, telegram, kv, env) {
     ? t("appeal_message", { content: appealContent }, adminLang)
     : t("appeal_no_message", {}, adminLang);
 
-  // Send to admin
   await telegram.sendMessage({
     chat_id: ENV_ADMIN_UID,
     text: appealText,
@@ -196,15 +169,11 @@ async function handleAppealCommand(message, telegram, kv, env) {
 // ============================================
 
 /**
- * Check message content against AI filters
- * @param {Object} message - Telegram message
- * @param {Object} telegram - Telegram client
- * @param {KVNamespace} kv - KV storage
- * @param {Array} apiKeys - Gemini API keys
+ * Check message content against AI filters.
+ * Checks text, images, and stickers with caching.
  * @returns {Promise<string|null>} Filter result or null if safe
  */
 async function checkMessageContent(message, telegram, kv, apiKeys) {
-  // Check text content (with caching)
   const textContent = message.text || message.caption;
   if (textContent) {
     const cached = await getCachedModerationResult(kv, textContent);
@@ -218,7 +187,6 @@ async function checkMessageContent(message, telegram, kv, apiKeys) {
     if (result) return result;
   }
 
-  // Check image content
   if (message.photo) {
     const imageUrl = await getImageUrl(message, telegram);
     if (imageUrl) {
@@ -227,7 +195,6 @@ async function checkMessageContent(message, telegram, kv, apiKeys) {
     }
   }
 
-  // Check sticker content
   if (message.sticker) {
     const stickerUrl = await getStickerUrl(message, telegram);
     if (stickerUrl) {
@@ -240,12 +207,7 @@ async function checkMessageContent(message, telegram, kv, apiKeys) {
 }
 
 /**
- * Handle unsafe content detection
- * @param {Object} telegram - Telegram client
- * @param {KVNamespace} kv - KV storage
- * @param {string} guestId - Guest ID
- * @param {string} filterResult - Filter result
- * @param {string} lang - Language code
+ * Handle unsafe content detection.
  */
 async function handleUnsafeContent(telegram, kv, guestId, filterResult, lang) {
   await incrementCounter(kv, "ai-blocks");
@@ -266,13 +228,8 @@ async function handleUnsafeContent(telegram, kv, guestId, filterResult, lang) {
 // ============================================
 
 /**
- * Handle guest messages
+ * Handle guest messages.
  * Flow: Check blocks -> Commands -> Rate limit -> AI filter -> Forward
- *
- * @param {Object} message - Telegram message object
- * @param {Object} telegram - Telegram client
- * @param {KVNamespace} kv - KV storage
- * @param {Object} env - Environment variables
  */
 export async function handleGuestMessage(message, telegram, kv, env) {
   try {
@@ -281,7 +238,6 @@ export async function handleGuestMessage(message, telegram, kv, env) {
     const lang = await getLang(kv, guestId);
     const text = message.text || "";
 
-    // Check block status first
     const blocked = await isGuestBlocked(kv, guestId);
 
     // /lang is always allowed

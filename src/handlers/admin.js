@@ -2,6 +2,9 @@
  * kokosa-forward - Telegram Message Forwarding Bot
  * Copyright (c) 2025, 秦心桜
  * Licensed under BSD 2-Clause License
+ *
+ * @fileoverview Admin message handler.
+ * Handles all admin commands including blocking, statistics, and management.
  */
 
 import { checkContentSafety, getApiUsageStats, parseApiKeys } from "../ai.js";
@@ -24,35 +27,22 @@ import { t, buildLanguageKeyboard, getDefaultLanguage } from "../i18n.js";
 // ============================================
 
 /**
- * Get user's language preference with fallback to default
- * @param {KVNamespace} kv - KV storage
- * @param {string} userId - User ID
- * @returns {Promise<string>} Language code
+ * Get user's language preference with fallback to default.
  */
 async function getLang(kv, userId) {
   return (await getUserLanguage(kv, userId)) || getDefaultLanguage();
 }
 
 /**
- * Send a message to admin with consistent error handling
- * @param {Object} telegram - Telegram client
- * @param {string} adminId - Admin chat ID
- * @param {string} text - Message text
- * @param {Object} options - Additional options (reply_markup, etc.)
- * @returns {Promise<Object>} Telegram response
+ * Send a message to admin with consistent error handling.
  */
 async function sendToAdmin(telegram, adminId, text, options = {}) {
   return telegram.sendMessage({ chat_id: adminId, text, ...options });
 }
 
 /**
- * Get relay for reply-based commands with validation
- * @param {KVNamespace} kv - KV storage
- * @param {number} replyMsgId - Message ID being replied to
- * @param {Object} telegram - Telegram client
- * @param {string} adminId - Admin user ID
- * @param {string} lang - Language code
- * @returns {Promise<{relay: Object|null, relayId: string|null, error: boolean}>}
+ * Get relay for reply-based commands with validation.
+ * @returns {{relay, relayId, error}} Relay info or error flag
  */
 async function getReplyRelay(kv, replyMsgId, telegram, adminId, lang) {
   const relayId = await getRelayByAdminMsg(kv, replyMsgId);
@@ -72,10 +62,8 @@ async function getReplyRelay(kv, replyMsgId, telegram, adminId, lang) {
 
 // ============================================
 // Command Handlers (Standalone Commands)
-// Using a command map reduces cyclomatic complexity
 // ============================================
 
-/** /start command */
 const cmdStart = async (ctx) => {
   return sendToAdmin(
     ctx.telegram,
@@ -84,7 +72,6 @@ const cmdStart = async (ctx) => {
   );
 };
 
-/** /lang command */
 const cmdLang = async (ctx) => {
   return sendToAdmin(
     ctx.telegram,
@@ -94,7 +81,6 @@ const cmdLang = async (ctx) => {
   );
 };
 
-/** /list command - Show blocked users */
 const cmdList = async (ctx) => {
   const blocked = await getBlockedList(ctx.kv);
 
@@ -129,7 +115,6 @@ const cmdList = async (ctx) => {
   });
 };
 
-/** /stats command */
 const cmdStats = async (ctx) => {
   const stats = await getStatistics(ctx.kv);
   const apiStats = getApiUsageStats();
@@ -173,9 +158,6 @@ const COMMANDS = {
 // Parameterized Command Handlers
 // ============================================
 
-/**
- * Handle /unban <ID> command
- */
 async function handleUnbanCommand(ctx, text) {
   const guestId = text.split(" ")[1];
   if (!guestId) {
@@ -193,9 +175,6 @@ async function handleUnbanCommand(ctx, text) {
   );
 }
 
-/**
- * Handle /trustid <ID> command
- */
 async function handleTrustIdCommand(ctx, text) {
   const guestId = text.split(" ")[1];
   if (!guestId) {
@@ -213,9 +192,6 @@ async function handleTrustIdCommand(ctx, text) {
   );
 }
 
-/**
- * Handle /checktext <content> command
- */
 async function handleCheckTextCommand(ctx, text, env) {
   const content = text.substring(11).trim();
   if (!content) {
@@ -239,7 +215,6 @@ async function handleCheckTextCommand(ctx, text, env) {
 // Reply-based Command Handlers
 // ============================================
 
-/** /block - Block sender */
 const replyBlock = async (ctx, relay, relayId) => {
   await setGuestBlocked(ctx.kv, relay.guestId, true, "Manual block by admin");
   await updateRelayStatus(ctx.kv, relayId, "blocked");
@@ -254,7 +229,6 @@ const replyBlock = async (ctx, relay, relayId) => {
   );
 };
 
-/** /trust - Add to whitelist */
 const replyTrust = async (ctx, relay) => {
   await setUserTrusted(ctx.kv, relay.guestId);
   return sendToAdmin(
@@ -268,7 +242,6 @@ const replyTrust = async (ctx, relay) => {
   );
 };
 
-/** /unblock - Remove block */
 const replyUnblock = async (ctx, relay) => {
   await setGuestBlocked(ctx.kv, relay.guestId, false);
   return sendToAdmin(
@@ -278,7 +251,6 @@ const replyUnblock = async (ctx, relay) => {
   );
 };
 
-/** /status - Check user status */
 const replyStatus = async (ctx, relay) => {
   const blocked = await isGuestBlocked(ctx.kv, relay.guestId);
   return sendToAdmin(
@@ -297,7 +269,6 @@ const replyStatus = async (ctx, relay) => {
   );
 };
 
-/** /check - AI content check */
 const replyCheck = async (ctx, relay, relayId, env) => {
   if (!relay.preview) {
     return sendToAdmin(
@@ -330,11 +301,7 @@ const REPLY_COMMANDS = {
 // ============================================
 
 /**
- * Handle callback query from inline buttons
- * @param {Object} query - Callback query object
- * @param {Object} telegram - Telegram client
- * @param {KVNamespace} kv - KV storage
- * @param {Object} env - Environment variables
+ * Handle callback query from inline buttons.
  */
 export async function handleCallbackQuery(query, telegram, kv, env) {
   try {
@@ -408,13 +375,8 @@ export async function handleCallbackQuery(query, telegram, kv, env) {
 // ============================================
 
 /**
- * Handle admin text messages
- * Uses command maps to dispatch to appropriate handlers
- *
- * @param {Object} message - Telegram message object
- * @param {Object} telegram - Telegram client
- * @param {KVNamespace} kv - KV storage
- * @param {Object} env - Environment variables
+ * Handle admin text messages.
+ * Uses command maps to dispatch to appropriate handlers.
  */
 export async function handleAdminMessage(message, telegram, kv, env) {
   try {
@@ -423,10 +385,9 @@ export async function handleAdminMessage(message, telegram, kv, env) {
     const userId = message.from.id.toString();
     const lang = await getLang(kv, userId);
 
-    // Build context object for handlers
     const ctx = { telegram, kv, adminId: ENV_ADMIN_UID, userId, lang };
 
-    // Check exact match commands first
+    // Check exact match commands
     if (COMMANDS[text]) {
       return await COMMANDS[text](ctx);
     }
@@ -446,7 +407,6 @@ export async function handleAdminMessage(message, telegram, kv, env) {
     if (message.reply_to_message) {
       const replyMsgId = message.reply_to_message.message_id;
 
-      // Check command map for reply commands
       const replyCmd = REPLY_COMMANDS[text];
       if (replyCmd) {
         const { relay, relayId, error } = await getReplyRelay(
@@ -458,7 +418,6 @@ export async function handleAdminMessage(message, telegram, kv, env) {
         );
         if (error) return;
 
-        // Call handler with appropriate arguments
         if (replyCmd.needsEnv) {
           return await replyCmd.handler(ctx, relay, relayId, env);
         }

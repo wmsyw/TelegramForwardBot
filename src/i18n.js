@@ -2,17 +2,19 @@
  * kokosa-forward - Telegram Message Forwarding Bot
  * Copyright (c) 2025, 秦心桜
  * Licensed under BSD 2-Clause License
+ *
+ * @fileoverview Internationalization module with message translations.
+ * Add new languages by creating a new object in the messages constant.
  */
 
 import { LANGUAGE } from "./config.js";
 
 /**
- * Language definitions
- * Add new languages by creating a new object with all message keys
+ * Language definitions.
+ * Each language object must contain all message keys.
  */
 const messages = {
   en: {
-    // Language info
     lang_name: "English",
     lang_flag: "🇺🇸",
 
@@ -81,7 +83,6 @@ const messages = {
   },
 
   zh: {
-    // Language info
     lang_name: "中文",
     lang_flag: "🇨🇳",
 
@@ -147,23 +148,20 @@ const messages = {
   },
 };
 
-/**
- * Default language from config
- */
 const defaultLanguage = LANGUAGE || "en";
 
 /**
- * Get available languages
- * @returns {string[]} Array of language codes
+ * Get available language codes.
+ * @returns {string[]} Array of language codes (e.g., ["en", "zh"])
  */
 export function getAvailableLanguages() {
   return Object.keys(messages);
 }
 
 /**
- * Get language display info
+ * Get language display info.
  * @param {string} lang - Language code
- * @returns {Object} Language info with name and flag
+ * @returns {{name: string, flag: string}} Language name and flag emoji
  */
 export function getLanguageInfo(lang) {
   const m = messages[lang];
@@ -172,9 +170,9 @@ export function getLanguageInfo(lang) {
 }
 
 /**
- * Build language selection keyboard
+ * Build inline keyboard for language selection.
  * @param {string} userId - User ID for callback data
- * @returns {Object} Inline keyboard markup
+ * @returns {Object} Telegram inline_keyboard markup
  */
 export function buildLanguageKeyboard(userId) {
   const langs = getAvailableLanguages();
@@ -186,24 +184,26 @@ export function buildLanguageKeyboard(userId) {
     };
   });
 
-  return {
-    inline_keyboard: [buttons],
-  };
+  return { inline_keyboard: [buttons] };
 }
 
 /**
- * Get a translated message with optional variable substitution
- * @param {string} key - Message key
- * @param {Object} vars - Variables to substitute
- * @param {string} lang - Language code (optional, uses default if not specified)
- * @returns {string} Translated message
+ * Get a translated message with variable substitution.
+ *
+ * @param {string} key - Message key from language definitions
+ * @param {Object} vars - Variables to substitute (e.g., {count: 5})
+ * @param {string|null} lang - Language code, uses default if null
+ * @returns {string} Translated message with variables substituted
+ *
+ * @example
+ * t("blocked_users_title", { count: 3 }, "en")
+ * // Returns: "Blocked Users (3):\n\n"
  */
 export function t(key, vars = {}, lang = null) {
   const useLang = lang || defaultLanguage;
   const langMessages = messages[useLang] || messages.en;
   let message = langMessages[key] || messages.en[key] || key;
 
-  // Substitute variables
   for (const [varName, value] of Object.entries(vars)) {
     message = message.replace(new RegExp(`\\{${varName}\\}`, "g"), value);
   }
@@ -212,8 +212,8 @@ export function t(key, vars = {}, lang = null) {
 }
 
 /**
- * Get default language
- * @returns {string} Default language code
+ * Get the default language code.
+ * @returns {string} Default language code from config
  */
 export function getDefaultLanguage() {
   return defaultLanguage;

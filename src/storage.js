@@ -12,16 +12,12 @@
 // Relay Management
 // ============================================
 
-/**
- * Generate a unique relay ID
- * @returns {string} Unique relay ID
- */
 function generateRelayId() {
   return `R-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 }
 
 /**
- * Create a new relay for guest message
+ * Create a new relay for guest message.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} guestId - Guest chat ID
  * @param {Object} message - Original message object
@@ -47,7 +43,7 @@ export async function createRelay(kv, guestId, message) {
 }
 
 /**
- * Get relay by ID
+ * Get relay by ID.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} relayId - Relay ID
  * @returns {Promise<Object|null>} Relay object or null
@@ -58,7 +54,7 @@ export async function getRelay(kv, relayId) {
 }
 
 /**
- * Update relay status
+ * Update relay status.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} relayId - Relay ID
  * @param {string} status - New status
@@ -73,7 +69,7 @@ export async function updateRelayStatus(kv, relayId, status) {
 }
 
 /**
- * Store admin message ID for relay (for reply tracking)
+ * Store admin message ID for relay (for reply tracking).
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {number} adminMsgId - Admin's message ID
  * @param {string} relayId - Relay ID
@@ -83,7 +79,7 @@ export async function linkAdminMessage(kv, adminMsgId, relayId) {
 }
 
 /**
- * Get relay ID from admin message ID
+ * Get relay ID from admin message ID.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {number} adminMsgId - Admin's message ID
  * @returns {Promise<string|null>} Relay ID or null
@@ -93,7 +89,7 @@ export async function getRelayByAdminMsg(kv, adminMsgId) {
 }
 
 /**
- * Check if user is blocked
+ * Check if user is blocked.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} guestId - Guest chat ID
  * @returns {Promise<boolean>} True if blocked
@@ -108,7 +104,7 @@ export async function isGuestBlocked(kv, guestId) {
 // ============================================
 
 /**
- * Set guest block status
+ * Set guest block status.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} guestId - Guest chat ID
  * @param {boolean} blocked - Block status
@@ -116,16 +112,11 @@ export async function isGuestBlocked(kv, guestId) {
  */
 export async function setGuestBlocked(kv, guestId, blocked, reason = "Manual") {
   if (blocked) {
-    const blockData = {
-      guestId,
-      reason,
-      blockedAt: Date.now(),
-    };
+    const blockData = { guestId, reason, blockedAt: Date.now() };
     await kv.put(`blocked:${guestId}`, "true");
     await kv.put(`block-info:${guestId}`, JSON.stringify(blockData));
     await incrementCounter(kv, "total-blocked");
-    // Reset trust score on ban
-    await kv.delete(`trust:${guestId}`);
+    await kv.delete(`trust:${guestId}`); // Reset trust score on ban
   } else {
     await kv.delete(`blocked:${guestId}`);
     await kv.delete(`block-info:${guestId}`);
@@ -134,7 +125,7 @@ export async function setGuestBlocked(kv, guestId, blocked, reason = "Manual") {
 }
 
 /**
- * Get block info for a guest
+ * Get block info for a guest.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} guestId - Guest chat ID
  * @returns {Promise<Object|null>} Block info or null
@@ -145,7 +136,7 @@ export async function getBlockInfo(kv, guestId) {
 }
 
 /**
- * Get all blocked guests
+ * Get all blocked guests.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @returns {Promise<Array>} Array of blocked guest info
  */
@@ -168,7 +159,7 @@ export async function getBlockedList(kv) {
 // ============================================
 
 /**
- * Increment a counter
+ * Increment a counter.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} name - Counter name
  */
@@ -178,7 +169,7 @@ export async function incrementCounter(kv, name) {
 }
 
 /**
- * Decrement a counter
+ * Decrement a counter.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} name - Counter name
  */
@@ -190,7 +181,7 @@ export async function decrementCounter(kv, name) {
 }
 
 /**
- * Get counter value
+ * Get counter value.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} name - Counter name
  * @returns {Promise<number>} Counter value
@@ -200,61 +191,44 @@ export async function getCounter(kv, name) {
 }
 
 /**
- * Get all statistics
+ * Get all statistics.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @returns {Promise<Object>} Statistics object
  */
 export async function getStatistics(kv) {
   const totalRelays = await getCounter(kv, "total-relays");
   const aiBlocks = await getCounter(kv, "ai-blocks");
-
-  // Count actual blocked users from list (more accurate than counter)
   const blockedList = await getBlockedList(kv);
-  const totalBlocked = blockedList.length;
+  const totalBlocked = blockedList.length; // More accurate than counter
 
-  return {
-    totalRelays,
-    totalBlocked,
-    aiBlocks,
-  };
+  return { totalRelays, totalBlocked, aiBlocks };
 }
 
 // ============================================
 // Rate Limiting System
 // ============================================
 
-/**
- * Rate limit configuration
- */
 const RATE_LIMIT_CONFIG = {
   maxRequests: 10, // Maximum requests per window
   windowMs: 60000, // Time window in milliseconds (1 minute)
 };
 
 /**
- * Check if user is rate limited
+ * Check if user is rate limited.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} guestId - Guest chat ID
- * @returns {Promise<{allowed: boolean, remaining: number}>} Rate limit status
+ * @returns {Promise<{allowed: boolean, remaining: number, resetIn?: number}>}
  */
 export async function checkRateLimit(kv, guestId) {
   const key = `ratelimit:${guestId}`;
   const now = Date.now();
-
-  // Get current rate limit data
   const data = await kv.get(key, { type: "json" });
 
   if (!data || now - data.windowStart > RATE_LIMIT_CONFIG.windowMs) {
     // New window
-    await kv.put(
-      key,
-      JSON.stringify({
-        windowStart: now,
-        count: 1,
-      }),
-      { expirationTtl: 120 },
-    ); // Expire after 2 minutes
-
+    await kv.put(key, JSON.stringify({ windowStart: now, count: 1 }), {
+      expirationTtl: 120,
+    });
     return { allowed: true, remaining: RATE_LIMIT_CONFIG.maxRequests - 1 };
   }
 
@@ -269,10 +243,7 @@ export async function checkRateLimit(kv, guestId) {
   // Increment counter
   await kv.put(
     key,
-    JSON.stringify({
-      windowStart: data.windowStart,
-      count: data.count + 1,
-    }),
+    JSON.stringify({ windowStart: data.windowStart, count: data.count + 1 }),
     { expirationTtl: 120 },
   );
 
@@ -283,7 +254,7 @@ export async function checkRateLimit(kv, guestId) {
 }
 
 /**
- * Get rate limit configuration
+ * Get rate limit configuration.
  * @returns {Object} Rate limit config
  */
 export function getRateLimitConfig() {
@@ -297,7 +268,7 @@ export function getRateLimitConfig() {
 const TRUST_THRESHOLD = 3; // Messages needed to become trusted
 
 /**
- * Get user trust score
+ * Get user trust score.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} guestId - Guest chat ID
  * @returns {Promise<number>} Trust score
@@ -307,7 +278,7 @@ export async function getTrustScore(kv, guestId) {
 }
 
 /**
- * Increment user trust score (call after passing moderation)
+ * Increment user trust score (call after passing moderation).
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} guestId - Guest chat ID
  */
@@ -319,7 +290,7 @@ export async function incrementTrustScore(kv, guestId) {
 }
 
 /**
- * Reset user trust score (call on ban)
+ * Reset user trust score (call on ban).
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} guestId - Guest chat ID
  */
@@ -328,7 +299,7 @@ export async function resetTrustScore(kv, guestId) {
 }
 
 /**
- * Check if user is trusted (passed enough moderation checks)
+ * Check if user is trusted (passed enough moderation checks).
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} guestId - Guest chat ID
  * @returns {Promise<boolean>} True if trusted
@@ -339,7 +310,7 @@ export async function isUserTrusted(kv, guestId) {
 }
 
 /**
- * Manually set user as trusted (admin whitelist)
+ * Manually set user as trusted (admin whitelist).
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} guestId - Guest chat ID
  */
@@ -352,7 +323,7 @@ export async function setUserTrusted(kv, guestId) {
 // ============================================
 
 /**
- * Generate content hash for caching
+ * Generate content hash for caching.
  * @param {string} content - Content to hash
  * @returns {Promise<string>} Hash string
  */
@@ -365,10 +336,10 @@ async function generateContentHash(content) {
 }
 
 /**
- * Get cached moderation result for content
+ * Get cached moderation result for content.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} content - Content to check
- * @returns {Promise<{hit: boolean, result: string|null}>} Cache result
+ * @returns {Promise<{hit: boolean, result: string|null}>}
  */
 export async function getCachedModerationResult(kv, content) {
   if (!content || content.length < 5) {
@@ -390,7 +361,7 @@ export async function getCachedModerationResult(kv, content) {
 }
 
 /**
- * Cache moderation result for content
+ * Cache moderation result for content.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} content - Content that was checked
  * @param {string|null} result - Moderation result (null = safe)
@@ -402,9 +373,7 @@ export async function cacheModerationResult(kv, content, result) {
 
   const hash = await generateContentHash(content);
   const value = result ? `UNSAFE:${result}` : "SAFE";
-
-  // Cache for 24 hours
-  await kv.put(`modcache:${hash}`, value, { expirationTtl: 86400 });
+  await kv.put(`modcache:${hash}`, value, { expirationTtl: 86400 }); // 24 hours
 }
 
 // ============================================
@@ -412,17 +381,17 @@ export async function cacheModerationResult(kv, content, result) {
 // ============================================
 
 /**
- * Get user's language preference
+ * Get user's language preference.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} userId - User ID
- * @returns {Promise<string|null>} Language code or null if not set
+ * @returns {Promise<string|null>} Language code or null
  */
 export async function getUserLanguage(kv, userId) {
   return await kv.get(`lang:${userId}`, { type: "text" });
 }
 
 /**
- * Set user's language preference
+ * Set user's language preference.
  * @param {KVNamespace} kv - Cloudflare KV namespace
  * @param {string} userId - User ID
  * @param {string} lang - Language code
