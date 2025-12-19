@@ -77,6 +77,7 @@ https://your-worker.workers.dev/registerCommands
 | `ENV_BOT_SECRET`     | 任意随机字符串，用于 Webhook 安全验证                                     |
 | `ENV_ADMIN_UID`      | 你的 Telegram 用户 ID（从 [@userinfobot](https://t.me/userinfobot) 获取） |
 | `ENV_GEMINI_API_KEY` | 从 [Google AI Studio](https://aistudio.google.com/app/apikey) 获取        |
+| `ENV_GEMINI_API_BASE_URL` | 可选，自定义 Gemini API 地址，用于代理或自托管服务                   |
 | `ENV_TELEGRAM_API_BASE_URL` | 可选，自定义 Telegram API 地址，默认为官方地址                     |
 | `ENV_FORUM_GROUP_ID` | 可选，论坛模式群组 ID，启用论坛模式时必填                                 |
 

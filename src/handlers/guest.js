@@ -175,7 +175,7 @@ async function handleAppealCommand(message, telegram, kv, env) {
  * Checks text, images, and stickers with caching.
  * @returns {Promise<string|null>} Filter result or null if safe
  */
-async function checkMessageContent(message, telegram, kv, apiKeys) {
+async function checkMessageContent(message, telegram, kv, apiKeys, baseUrl = null) {
   const textContent = message.text || message.caption;
   if (textContent) {
     const cached = await getCachedModerationResult(kv, textContent);
@@ -184,7 +184,7 @@ async function checkMessageContent(message, telegram, kv, apiKeys) {
       return cached.result;
     }
 
-    const result = await checkContentSafety(textContent, apiKeys);
+    const result = await checkContentSafety(textContent, apiKeys, undefined, baseUrl);
     await cacheModerationResult(kv, textContent, result);
     if (result) return result;
   }
@@ -192,7 +192,7 @@ async function checkMessageContent(message, telegram, kv, apiKeys) {
   if (message.photo) {
     const imageUrl = await getImageUrl(message, telegram);
     if (imageUrl) {
-      const result = await checkImageSafety(imageUrl, apiKeys, message.caption);
+      const result = await checkImageSafety(imageUrl, apiKeys, message.caption, undefined, baseUrl);
       if (result) return result;
     }
   }
@@ -200,7 +200,7 @@ async function checkMessageContent(message, telegram, kv, apiKeys) {
   if (message.sticker) {
     const stickerUrl = await getStickerUrl(message, telegram);
     if (stickerUrl) {
-      const result = await checkImageSafety(stickerUrl, apiKeys);
+      const result = await checkImageSafety(stickerUrl, apiKeys, "", undefined, baseUrl);
       if (result) return result;
     }
   }
@@ -284,11 +284,13 @@ export async function handleGuestMessage(message, telegram, kv, env) {
         console.log(`[Guest] Trusted user, skipping AI check: ${guestId}`);
       } else {
         const apiKeys = parseApiKeys(ENV_GEMINI_API_KEY);
+        const baseUrl = env.ENV_GEMINI_API_BASE_URL || null;
         const filterResult = await checkMessageContent(
           message,
           telegram,
           kv,
           apiKeys,
+          baseUrl,
         );
 
         if (filterResult) {

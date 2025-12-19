@@ -92,7 +92,7 @@ Analyze the content:`;
  *   console.log("Unsafe:", result);
  * }
  */
-export async function checkContentSafety(text, apiKeys, model = GEMINI_MODEL) {
+export async function checkContentSafety(text, apiKeys, model = GEMINI_MODEL, baseUrl = null) {
   if (!text || text.length < 2 || !apiKeys) {
     return null;
   }
@@ -110,7 +110,7 @@ export async function checkContentSafety(text, apiKeys, model = GEMINI_MODEL) {
     ],
   };
 
-  return await callGeminiApi(payload, keys, maxRetries, model);
+  return await callGeminiApi(payload, keys, maxRetries, model, baseUrl);
 }
 
 // ============================================
@@ -132,6 +132,7 @@ export async function checkImageSafety(
   apiKeys,
   caption = "",
   model = GEMINI_MODEL,
+  baseUrl = null,
 ) {
   if (!imageUrl || !apiKeys) {
     return null;
@@ -192,7 +193,7 @@ export async function checkImageSafety(
 
     const payload = { contents: [{ parts }] };
 
-    return await callGeminiApi(payload, keys, maxRetries, model);
+    return await callGeminiApi(payload, keys, maxRetries, model, baseUrl);
   } catch (e) {
     console.log(`[AI] Image processing error: ${e.message}`);
     return null;
@@ -213,10 +214,11 @@ export async function checkImageSafety(
  * @param {string} model - Model name
  * @returns {Promise<string|null>} Reason if unsafe, null if safe or error
  */
-async function callGeminiApi(payload, keys, maxRetries, model) {
+async function callGeminiApi(payload, keys, maxRetries, model, baseUrl = null) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const apiKey = getNextApiKey(keys);
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const apiBase = baseUrl || "https://generativelanguage.googleapis.com";
+    const endpoint = `${apiBase}/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     try {
       const response = await fetch(endpoint, {

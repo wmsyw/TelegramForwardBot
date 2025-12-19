@@ -230,7 +230,8 @@ async function handleCheckTextCommand(ctx, text, env) {
     );
   }
   const apiKeys = parseApiKeys(env.ENV_GEMINI_API_KEY);
-  const result = await checkContentSafety(content, apiKeys);
+  const baseUrl = env.ENV_GEMINI_API_BASE_URL || null;
+  const result = await checkContentSafety(content, apiKeys, undefined, baseUrl);
   const status = result ? `UNSAFE: ${result}` : "SAFE";
   return sendToAdmin(
     ctx.telegram,
@@ -336,12 +337,13 @@ const replyStatus = async (ctx, relay) => {
 
 const replyCheck = async (ctx, relay, relayId, env, replyMsg) => {
   const apiKeys = parseApiKeys(env.ENV_GEMINI_API_KEY);
+  const baseUrl = env.ENV_GEMINI_API_BASE_URL || null;
   const results = [];
 
   // Check text content first
   const textContent = replyMsg?.caption || replyMsg?.text || relay.preview;
   if (textContent) {
-    const textResult = await checkContentSafety(textContent, apiKeys);
+    const textResult = await checkContentSafety(textContent, apiKeys, undefined, baseUrl);
     const textStatus = textResult ? `UNSAFE: ${textResult}` : "SAFE";
     results.push(t("content_check", { status: textStatus }, ctx.lang));
   }
@@ -352,7 +354,7 @@ const replyCheck = async (ctx, relay, relayId, env, replyMsg) => {
     const fileResult = await ctx.telegram.getFile({ file_id: photo.file_id });
     if (fileResult.ok) {
       const imageUrl = ctx.telegram.getFileUrl(fileResult.result.file_path);
-      const imageResult = await checkImageSafety(imageUrl, apiKeys);
+      const imageResult = await checkImageSafety(imageUrl, apiKeys, "", undefined, baseUrl);
       const imageStatus = imageResult ? `UNSAFE: ${imageResult}` : "SAFE";
       results.push(t("image_check", { status: imageStatus }, ctx.lang));
     }
