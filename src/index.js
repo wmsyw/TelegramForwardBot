@@ -59,9 +59,14 @@ const updateHandlers = {
 async function handleMessageUpdate(update, telegram, kv, env) {
   const message = update.message;
   const chatId = message.chat.id.toString();
-  const { ENV_ADMIN_UID } = env;
+  const { ENV_ADMIN_UID, ENV_FORUM_GROUP_ID } = env;
 
   console.log(`[Message] From ${chatId}: ${message.text || "[Media]"}`);
+
+  // Route forum group messages to admin handler
+  if (ENV_FORUM_GROUP_ID && chatId === ENV_FORUM_GROUP_ID) {
+    return await handleAdminMessage(message, telegram, kv, env);
+  }
 
   if (chatId === ENV_ADMIN_UID) {
     return await handleAdminMessage(message, telegram, kv, env);
@@ -136,7 +141,7 @@ async function handleWebhook(request, env, ctx) {
   }
 
   const update = await request.json();
-  const telegram = createTelegramClient(ENV_BOT_TOKEN);
+  const telegram = createTelegramClient(ENV_BOT_TOKEN, env.ENV_TELEGRAM_API_BASE_URL);
 
   ctx.waitUntil(processUpdate(update, telegram, env.kfb, env));
 
@@ -151,7 +156,7 @@ async function registerWebhook(request, env) {
   const url = new URL(request.url);
   const webhookUrl = `${url.protocol}//${url.hostname}${WEBHOOK_PATH}`;
 
-  const telegram = createTelegramClient(env.ENV_BOT_TOKEN);
+  const telegram = createTelegramClient(env.ENV_BOT_TOKEN, env.ENV_TELEGRAM_API_BASE_URL);
   const result = await telegram.setWebhook({
     url: webhookUrl,
     secret_token: env.ENV_BOT_SECRET,
@@ -168,7 +173,7 @@ async function registerWebhook(request, env) {
  * Useful for switching to polling or removing bot.
  */
 async function unregisterWebhook(env) {
-  const telegram = createTelegramClient(env.ENV_BOT_TOKEN);
+  const telegram = createTelegramClient(env.ENV_BOT_TOKEN, env.ENV_TELEGRAM_API_BASE_URL);
   const result = await telegram.setWebhook({ url: "" });
 
   return new Response(JSON.stringify(result), {
@@ -181,7 +186,7 @@ async function unregisterWebhook(env) {
  * Sets up different command menus for admin vs regular users.
  */
 async function registerCommands(env) {
-  const telegram = createTelegramClient(env.ENV_BOT_TOKEN);
+  const telegram = createTelegramClient(env.ENV_BOT_TOKEN, env.ENV_TELEGRAM_API_BASE_URL);
   const results = {};
 
   results.admin = await telegram.setMyCommands({

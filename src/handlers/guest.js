@@ -20,8 +20,10 @@ import {
   incrementTrustScore,
   getCachedModerationResult,
   cacheModerationResult,
+  getGuestForumTopic,
+  setGuestForumTopic,
 } from "../storage.js";
-import { ENABLE_FILTER, AUTO_BLOCK } from "../config.js";
+import { ENABLE_FILTER, AUTO_BLOCK, FORUM_MODE_ENABLED } from "../config.js";
 import { t, buildLanguageKeyboard, getUserLangOrDefault } from "../i18n.js";
 
 // ============================================
@@ -300,14 +302,62 @@ export async function handleGuestMessage(message, telegram, kv, env) {
 
     // Create relay and forward message
     const relay = await createRelay(kv, guestId, message);
-    const fwd = await telegram.forwardMessage({
-      chat_id: ENV_ADMIN_UID,
-      from_chat_id: message.chat.id,
-      message_id: message.message_id,
-    });
+    const username =
+      message.from?.username || message.from?.first_name || "Unknown";
 
-    if (fwd.ok) {
-      await linkAdminMessage(kv, fwd.result.message_id, relay.id);
+    // Forum mode: forward to group topic
+    if (FORUM_MODE_ENABLED && env.ENV_FORUM_GROUP_ID) {
+      let topic = await getGuestForumTopic(kv, guestId);
+
+      // Create topic for new user
+      if (!topic) {
+        const topicName = `${username} (${guestId})`;
+        const createResult = await telegram.createForumTopic({
+          chat_id: env.ENV_FORUM_GROUP_ID,
+          name: topicName,
+        });
+
+        if (createResult.ok) {
+          topic = {
+            topicId: createResult.result.message_thread_id,
+            topicName,
+          };
+          await setGuestForumTopic(
+            kv,
+            guestId,
+            topic.topicId,
+            topic.topicName,
+          );
+          console.log(`[Guest] Created forum topic for ${guestId}: ${topic.topicId}`);
+        } else {
+          console.warn(`[Guest] Failed to create forum topic:`, createResult);
+        }
+      }
+
+      // Forward to topic
+      if (topic) {
+        const fwd = await telegram.forwardMessage({
+          chat_id: env.ENV_FORUM_GROUP_ID,
+          message_thread_id: topic.topicId,
+          from_chat_id: message.chat.id,
+          message_id: message.message_id,
+        });
+
+        if (fwd.ok) {
+          await linkAdminMessage(kv, fwd.result.message_id, relay.id);
+        }
+      }
+    } else {
+      // Normal mode: forward to admin private chat
+      const fwd = await telegram.forwardMessage({
+        chat_id: ENV_ADMIN_UID,
+        from_chat_id: message.chat.id,
+        message_id: message.message_id,
+      });
+
+      if (fwd.ok) {
+        await linkAdminMessage(kv, fwd.result.message_id, relay.id);
+      }
     }
   } catch (error) {
     console.error(

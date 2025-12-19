@@ -399,3 +399,48 @@ export async function getUserLanguage(kv, userId) {
 export async function setUserLanguage(kv, userId, lang) {
   await kv.put(`lang:${userId}`, lang);
 }
+
+// ============================================
+// Forum Topic Management
+// ============================================
+
+/**
+ * Get guest's forum topic info.
+ * @param {KVNamespace} kv - Cloudflare KV namespace
+ * @param {string} guestId - Guest chat ID
+ * @returns {Promise<{topicId: number, topicName: string, createdAt: number}|null>}
+ */
+export async function getGuestForumTopic(kv, guestId) {
+  const data = await kv.get(`forum-topic:${guestId}`, { type: "json" });
+  return data;
+}
+
+/**
+ * Set guest's forum topic info.
+ * @param {KVNamespace} kv - Cloudflare KV namespace
+ * @param {string} guestId - Guest chat ID
+ * @param {number} topicId - Forum topic ID
+ * @param {string} topicName - Topic name
+ */
+export async function setGuestForumTopic(kv, guestId, topicId, topicName) {
+  await kv.put(
+    `forum-topic:${guestId}`,
+    JSON.stringify({
+      topicId,
+      topicName,
+      createdAt: Date.now(),
+    }),
+  );
+  // Create reverse mapping for topic -> guest lookup
+  await kv.put(`topic-guest:${topicId}`, guestId);
+}
+
+/**
+ * Get guest ID by topic ID.
+ * @param {KVNamespace} kv - Cloudflare KV namespace
+ * @param {number} topicId - Forum topic ID
+ * @returns {Promise<string|null>} Guest ID or null
+ */
+export async function getGuestIdByTopicId(kv, topicId) {
+  return await kv.get(`topic-guest:${topicId}`, { type: "text" });
+}

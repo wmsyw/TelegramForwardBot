@@ -77,9 +77,30 @@ https://your-worker.workers.dev/registerCommands
 | `ENV_BOT_SECRET`     | 任意随机字符串，用于 Webhook 安全验证                                     |
 | `ENV_ADMIN_UID`      | 你的 Telegram 用户 ID（从 [@userinfobot](https://t.me/userinfobot) 获取） |
 | `ENV_GEMINI_API_KEY` | 从 [Google AI Studio](https://aistudio.google.com/app/apikey) 获取        |
+| `ENV_TELEGRAM_API_BASE_URL` | 可选，自定义 Telegram API 地址，默认为官方地址                     |
+| `ENV_FORUM_GROUP_ID` | 可选，论坛模式群组 ID，启用论坛模式时必填                                 |
 
 > **提示**：如需使用多个 Gemini API 密钥，用逗号分隔：
 > `ENV_GEMINI_API_KEY = "key1,key2,key3"`
+
+### 论坛模式
+
+论坛模式将消息转发到群组话题而非管理员私聊，适合多人协作处理用户消息的场景。
+
+**启用步骤**：
+
+1. 创建一个 Telegram 群组并启用话题功能（群组设置 → 话题）
+2. 将机器人添加为群组**管理员**（需要话题管理权限）
+3. 获取群组 ID（可使用 [@userinfobot](https://t.me/userinfobot) 将其添加到群组）
+4. 修改 `src/config.js` 中的 `FORUM_MODE_ENABLED = true`
+5. 在 `wrangler.toml` 中添加 `ENV_FORUM_GROUP_ID = "群组ID"`
+
+**功能特性**：
+
+- 用户首次发消息时自动创建话题，话题名称为 `用户名 (用户ID)`
+- 管理员可在话题内直接回复消息给用户
+- 在话题内发送 `/block` 封禁用户并关闭话题
+- 在话题内发送 `/unblock` 解禁用户并重新打开话题
 
 ## 命令说明
 

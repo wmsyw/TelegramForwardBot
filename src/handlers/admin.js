@@ -24,8 +24,10 @@ import {
   setUserTrusted,
   resetTrustScore,
   setUserLanguage,
+  getGuestForumTopic,
+  getGuestIdByTopicId,
 } from "../storage.js";
-import { API_KEY_DISPLAY_LENGTH } from "../config.js";
+import { API_KEY_DISPLAY_LENGTH, FORUM_MODE_ENABLED } from "../config.js";
 import {
   t,
   buildLanguageKeyboard,
@@ -241,9 +243,21 @@ async function handleCheckTextCommand(ctx, text, env) {
 // Reply-based Command Handlers
 // ============================================
 
-const replyBlock = async (ctx, relay, relayId) => {
+const replyBlock = async (ctx, relay, relayId, env) => {
   await setGuestBlocked(ctx.kv, relay.guestId, true, "Manual block by admin");
   await updateRelayStatus(ctx.kv, relayId, "blocked");
+
+  // Close forum topic if in forum mode
+  if (FORUM_MODE_ENABLED && env?.ENV_FORUM_GROUP_ID) {
+    const topic = await getGuestForumTopic(ctx.kv, relay.guestId);
+    if (topic) {
+      await ctx.telegram.closeForumTopic({
+        chat_id: env.ENV_FORUM_GROUP_ID,
+        message_thread_id: topic.topicId,
+      });
+    }
+  }
+
   return sendToAdmin(
     ctx.telegram,
     ctx.adminId,
@@ -281,8 +295,20 @@ const replyUntrust = async (ctx, relay) => {
   );
 };
 
-const replyUnblock = async (ctx, relay) => {
+const replyUnblock = async (ctx, relay, relayId, env) => {
   await setGuestBlocked(ctx.kv, relay.guestId, false);
+
+  // Reopen forum topic if in forum mode
+  if (FORUM_MODE_ENABLED && env?.ENV_FORUM_GROUP_ID) {
+    const topic = await getGuestForumTopic(ctx.kv, relay.guestId);
+    if (topic) {
+      await ctx.telegram.reopenForumTopic({
+        chat_id: env.ENV_FORUM_GROUP_ID,
+        message_thread_id: topic.topicId,
+      });
+    }
+  }
+
   return sendToAdmin(
     ctx.telegram,
     ctx.adminId,
@@ -345,10 +371,10 @@ const replyCheck = async (ctx, relay, relayId, env, replyMsg) => {
 
 /** Reply command map */
 const REPLY_COMMANDS = {
-  "/block": { handler: replyBlock, needsRelayId: true },
+  "/block": { handler: replyBlock, needsRelayId: true, needsEnv: true },
   "/trust": { handler: replyTrust, needsRelayId: false },
   "/untrust": { handler: replyUntrust, needsRelayId: false },
-  "/unblock": { handler: replyUnblock, needsRelayId: false },
+  "/unblock": { handler: replyUnblock, needsRelayId: true, needsEnv: true },
   "/status": { handler: replyStatus, needsRelayId: false },
   "/check": {
     handler: replyCheck,
@@ -442,12 +468,73 @@ export async function handleCallbackQuery(query, telegram, kv, env) {
  */
 export async function handleAdminMessage(message, telegram, kv, env) {
   try {
-    const { ENV_ADMIN_UID } = env;
+    const { ENV_ADMIN_UID, ENV_FORUM_GROUP_ID } = env;
     const text = message.text || "";
     const userId = message.from.id.toString();
     const lang = await getUserLangOrDefault(kv, userId);
+    const chatId = message.chat.id.toString();
 
     const ctx = { telegram, kv, adminId: ENV_ADMIN_UID, userId, lang };
+
+    // Handle messages from forum group
+    if (FORUM_MODE_ENABLED && ENV_FORUM_GROUP_ID && chatId === ENV_FORUM_GROUP_ID) {
+      const topicId = message.message_thread_id;
+      if (!topicId) return; // Ignore general topic
+
+      const guestId = await getGuestIdByTopicId(kv, topicId);
+      if (!guestId) {
+        console.log(`[Admin] No guest found for topic ${topicId}`);
+        return;
+      }
+
+      // Handle commands in forum topic
+      if (text === "/block") {
+        await setGuestBlocked(kv, guestId, true, "Manual block by admin");
+        await telegram.closeForumTopic({
+          chat_id: ENV_FORUM_GROUP_ID,
+          message_thread_id: topicId,
+        });
+        return telegram.sendMessage({
+          chat_id: ENV_FORUM_GROUP_ID,
+          message_thread_id: topicId,
+          text: t("blocked", { guestId, username: guestId }, lang),
+        });
+      }
+
+      if (text === "/unblock") {
+        await setGuestBlocked(kv, guestId, false);
+        await telegram.reopenForumTopic({
+          chat_id: ENV_FORUM_GROUP_ID,
+          message_thread_id: topicId,
+        });
+        return telegram.sendMessage({
+          chat_id: ENV_FORUM_GROUP_ID,
+          message_thread_id: topicId,
+          text: t("unblocked", { guestId }, lang),
+        });
+      }
+
+      // Forward admin's message to guest (non-command messages)
+      if (!text.startsWith("/")) {
+        const blocked = await isGuestBlocked(kv, guestId);
+        if (blocked) {
+          return telegram.sendMessage({
+            chat_id: ENV_FORUM_GROUP_ID,
+            message_thread_id: topicId,
+            text: t("user_blocked_cannot_reply", {}, lang),
+          });
+        }
+
+        await telegram.copyMessage({
+          chat_id: guestId,
+          from_chat_id: ENV_FORUM_GROUP_ID,
+          message_id: message.message_id,
+        });
+        return;
+      }
+
+      return; // Ignore other commands in forum topic
+    }
 
     // Check exact match commands
     if (COMMANDS[text]) {

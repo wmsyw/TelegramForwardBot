@@ -26,6 +26,16 @@ export const AUTO_BLOCK = true;
 export const LANGUAGE = "en";
 
 // ============================================
+// Forum Mode Configuration
+// ============================================
+
+/**
+ * 论坛模式 - 将消息转发到群组话题而非管理员私聊
+ * 启用后需要配置 ENV_FORUM_GROUP_ID 环境变量
+ */
+export const FORUM_MODE_ENABLED = false;
+
+// ============================================
 // Rate Limiting Configuration
 // ============================================
 

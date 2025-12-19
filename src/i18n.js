@@ -85,6 +85,10 @@ const messages = {
     // Language selection
     lang_select_prompt: "Select your language:",
     lang_changed: "Language changed to English.",
+
+    // Forum mode
+    forum_topic_created: "Topic created for user {guestId}",
+    forum_reply_sent: "Reply sent to {guestId}",
   },
 
   zh: {
@@ -153,6 +157,10 @@ const messages = {
     // Language selection
     lang_select_prompt: "请选择语言:",
     lang_changed: "语言已切换为中文。",
+
+    // Forum mode
+    forum_topic_created: "已为用户 {guestId} 创建话题",
+    forum_reply_sent: "回复已发送给 {guestId}",
   },
 };
 

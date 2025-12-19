@@ -11,14 +11,16 @@
  * Create a Telegram API client instance.
  *
  * @param {string} token - Bot token from BotFather
+ * @param {string} [baseUrl="https://api.telegram.org"] - Custom API base URL
  * @returns {Object} API client with sendMessage, copyMessage, forwardMessage,
- *                   setWebhook, answerCallbackQuery, setMyCommands, getFile, getFileUrl
+ *                   setWebhook, answerCallbackQuery, setMyCommands, getFile, getFileUrl,
+ *                   createForumTopic, closeForumTopic, reopenForumTopic
  * @example
  * const telegram = createTelegramClient(process.env.BOT_TOKEN);
  * await telegram.sendMessage({ chat_id: 123, text: "Hello!" });
  */
-export function createTelegramClient(token) {
-  const apiUrl = (method) => `https://api.telegram.org/bot${token}/${method}`;
+export function createTelegramClient(token, baseUrl = "https://api.telegram.org") {
+  const apiUrl = (method) => `${baseUrl}/bot${token}/${method}`;
 
   /**
    * Make a POST request to Telegram Bot API.
@@ -69,6 +71,19 @@ export function createTelegramClient(token) {
      * @returns {string} Direct download URL
      */
     getFileUrl: (filePath) =>
-      `https://api.telegram.org/file/bot${token}/${filePath}`,
+      `${baseUrl}/file/bot${token}/${filePath}`,
+
+    // ============================================
+    // Forum Topic Methods
+    // ============================================
+
+    /** Create a forum topic in a supergroup chat */
+    createForumTopic: (params) => request("createForumTopic", params),
+
+    /** Close a forum topic */
+    closeForumTopic: (params) => request("closeForumTopic", params),
+
+    /** Reopen a closed forum topic */
+    reopenForumTopic: (params) => request("reopenForumTopic", params),
   };
 }
