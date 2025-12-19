@@ -1,4 +1,4 @@
-# kfb (kokosa-forward-bot)
+# TelegramForwardBot
 
 基于 Cloudflare Workers 的 Telegram 消息转发机器人，内置 AI 内容审核功能。
 
