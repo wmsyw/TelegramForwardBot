@@ -1,4 +1,4 @@
-# kfb (kokosa-forward-bot)
+# TelegramForwardBot
 
 [🇨🇳 中文文档](README_CN.md)
 
